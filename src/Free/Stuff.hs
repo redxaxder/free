@@ -4,7 +4,7 @@
 
 
 
-
+--git@github.com:redxaxder/free.git
 
 
 
@@ -46,8 +46,7 @@ import Control.Monad
 
 
 
-
-data List a = Cons a !(List a) | Nil deriving (Foldable, Functor)
+data List a = Cons a !(List a) | Nil deriving (Show, Foldable, Functor)
 
 (++) :: List a -> List a -> List a
 Nil ++ ys = ys
@@ -59,14 +58,15 @@ instance Monoid (List a) where
 
 
 
-data Two = One | Two
+data Two = One | Two deriving Show
 
 
 
 
 
 
-
+-- there are no restrictions on f
+-- once f is fixed, there are no more choices
 
 {- "F is free monoid over X" means...
  -
@@ -88,16 +88,8 @@ data Two = One | Two
  -}
 
 
-
-
-
-
-unit :: a -> List a
+unit :: Two -> List Two
 unit x = Cons x Nil
-
-
-
-
 
 
 instance Monoid Int where
@@ -132,6 +124,7 @@ ex2 f (Cons x xs) = f x <> ex2 f xs
 ex3 :: (Monoid m) => (Two -> m) -> List Two -> m
 ex3 = foldMap
 
+--foldMap :: (Monoid m, Foldable t) => (a -> m) -> t a -> m
 
 
 
@@ -148,7 +141,7 @@ ex3 = foldMap
 
 
 
-data Point = P Int Int
+data Point = P Int Int deriving Show
 
 instance Monoid Point where
   mempty = P 0 0
@@ -188,13 +181,6 @@ infixr 7 .* -- higher precedence than <>
 
 instance Module Point where
  s .* (P x y) = P (s * x) (s * y)
-
-
-
-
-
-
-
 {- "F is a free module over X" means...
  -
  -  There is a function unit :: X -> F and
@@ -205,9 +191,6 @@ instance Module Point where
  -  satisfying the property
  -  f' . unit = f
  -
- -
- -
- -
  -  A module morphism is monoid morphism satisfying the additional law
  -   - Commutes with scalar multiplicaiton:
  -   - s .* (f m) = f (s .* m)
@@ -215,10 +198,6 @@ instance Module Point where
  -}
 
 
-
-unit2 :: Two -> Point
-unit2 One = P 1 0
-unit2 Two = P 0 1
 
 
 
@@ -234,20 +213,12 @@ instance Module Int where
 
 
 
-ey1 :: Two -> Int
-ey1 One = 3
-ey1 Two = 7
-
-ey1' :: Point -> Int
-ey1' (P x y) = x .* (ey1 One) <> y .* (ey1 Two)
-
-
-
 
 
 
 {-
  - kindaLikeFoldMap :: (Module m) => (a -> m) -> ??? -> m
+ - kindaLikeFoldMap :: (Module m) => ??? -> (a -> m) -> m
  -}
 
 
@@ -261,13 +232,15 @@ ey1' (P x y) = x .* (ey1 One) <> y .* (ey1 Two)
 
 
 
-newtype FreeMonoid a = FreeMonoid { foldMonoid :: forall m. Monoid m => (a -> m) -> m }
+newtype FreeMonoid a = FreeMonoid
+ { foldMonoid :: forall m. Monoid m => (a -> m) -> m }
 
 instance Foldable FreeMonoid where
   foldMap = flip foldMonoid
 
 unit3 :: a -> FreeMonoid a
 unit3 x = FreeMonoid ($x)
+
 
 
 
@@ -293,7 +266,8 @@ instance Monoid (FreeMonoid a) where
 
 
 
-newtype FreeModule a = FreeModule { foldModule :: forall m.  Module m => (a -> m) -> m }
+newtype FreeModule a = FreeModule
+  { foldModule :: forall m.  Module m => (a -> m) -> m }
 
 unit4 :: a -> FreeModule a
 unit4 x = FreeModule ($x)
@@ -334,7 +308,7 @@ type (~>) f g = forall a. f a -> g a
  -
  -  There is a natural transformation unit :: X ~> F and
  -
- -  given any module M and any natural transformation f :: X ~> M
+ -  given any monad M and any natural transformation f :: X ~> M
  -
  -  there is a unique monad morphism  f' :: F ~> M
  -  satisfying the property
@@ -359,17 +333,23 @@ type (~>) f g = forall a. f a -> g a
 
 
 
-kindaLikeFoldMapButForMonads :: (Functor f, Monad m) => (f ~> m) -> (FreeMonad f ~> m)
+kindaLikeFoldMapButForMonads ::
+ --(Functor f, Monad m) => (f ~> m) -> (FreeMonad f ~> m)
+ (Functor f, Monad m) =>
+   --(f ~> m) -> (forall a. FreeMonad f a -> m a )
+   (f ~> m) -> FreeMonad f a -> m a
  -- this is named foldFree in Control.Monad.Free
 
+ --(Functor f, Monad m) => (f ~> m) -> FreeMonad f a -> m a
 
 
 
 
 
-newtype FreeMonad f a = FreeMonad { foldFreeMonad :: forall m . Monad m => (f ~> m) -> m a }
+newtype FreeMonad f a = FreeMonad
+ { foldFreeMonad :: forall m . Monad m => (f ~> m) -> m a }
 kindaLikeFoldMapButForMonads nat fm = foldFreeMonad fm nat
-
+--kindaLikeFoldMapButForMonads = flip foldFreeMonad
 
 
 
@@ -385,7 +365,7 @@ unit5 fx = FreeMonad ($fx)
 
 
 
-instance Functor f => Functor (FreeMonad f) where
+instance Functor (FreeMonad f) where
   fmap f fm = FreeMonad $ \nat ->
     fmap f (foldFreeMonad fm nat)
 
@@ -396,6 +376,8 @@ instance Functor f => Monad (FreeMonad f) where
      a <- foldFreeMonad fm nat
      foldFreeMonad (f a) nat
 
+ -- - n $ do x <- m    =    do x <- n m
+ --          f x               n (f x)
 
 instance Functor f => Applicative (FreeMonad f) where
   pure = return
